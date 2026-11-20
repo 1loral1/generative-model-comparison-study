@@ -1,0 +1,15 @@
+# Torchvision downloads
+data/
+
+# Model weights
+*.pt
+*.pth
+
+# Python / Jupyter clutter
+__pycache__/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
