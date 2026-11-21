@@ -3,8 +3,9 @@ import time
 
 import torch
 from torch import nn
+from torchvision.utils import save_image
 
-from .utils import CKPT_DIR, DEVICE, save_history
+from .utils import CKPT_DIR, DEVICE, SAMPLE_DIR, save_history
 
 def _sync(device):
     """Wait for the GPU to finish before reading the clock (GPU work is asynchronous)."""
@@ -127,3 +128,58 @@ def fit(name, model, loss_fn, opt, train_dl, val_dl, epochs, device=DEVICE):
     model.load_state_dict(torch.load(ckpt, map_location=device))
     save_history(name, history)
     return history
+
+
+# for GAN, DCGAN
+def train_gan(name, G, D, train_dl, epochs, z_dim=100, device=DEVICE):
+    """Alternate one D step and one G step per batch. GANs have no validation loss: judge them by the
+    samples saved every epoch (same fixed noise, so you can watch progress) and later by FID."""
+    optG = torch.optim.Adam(G.parameters(), lr=2e-4, betas=(0.5, 0.999))
+    optD = torch.optim.Adam(D.parameters(), lr=2e-4, betas=(0.5, 0.999))
+    bce = nn.BCEWithLogitsLoss()                            # D outputs raw logits, this adds the sigmoid
+    fixed_z = torch.randn(64, z_dim, device=device)         # same noise every epoch -> watch progress
+    hist = {"loss_D": [], "loss_G": [], "D_real": [], "D_fake": [], "epoch_time": []}
+
+    for ep in range(epochs):
+        G.train(); D.train()
+        t0 = time.perf_counter()
+        sums = dict(loss_D=0, loss_G=0, D_real=0, D_fake=0)
+        n = 0
+        for x, _ in train_dl:
+            x = x.to(device) * 2 - 1                        # [0,1] -> [-1,1] to match G's Tanh output
+            b = x.size(0)
+            fake = G(torch.randn(b, z_dim, device=device))
+
+            # 1) Discriminator step: real -> 1, fake -> 0
+            d_real = D(x)
+            d_fake = D(fake.detach())                       # detach: this step must not update G
+            loss_D = bce(d_real, torch.ones_like(d_real)) + bce(d_fake, torch.zeros_like(d_fake))
+            optD.zero_grad(); loss_D.backward(); optD.step()
+
+            # 2) Generator step (non-saturating loss): make D call the fakes "real"
+            d_fake = D(fake)                                # no detach: gradients flow through D into G
+            loss_G = bce(d_fake, torch.ones_like(d_fake))
+            optG.zero_grad(); loss_G.backward(); optG.step()
+
+            sums["loss_D"] += loss_D.item() * b
+            sums["loss_G"] += loss_G.item() * b
+            sums["D_real"] += torch.sigmoid(d_real).mean().item() * b   # D's average "real" score
+            sums["D_fake"] += torch.sigmoid(d_fake).mean().item() * b
+            n += b
+
+        _sync(device)
+        hist["epoch_time"].append(time.perf_counter() - t0)
+        for k in sums:
+            hist[k].append(sums[k] / n)
+
+        G.eval()
+        with torch.no_grad():
+            save_image((G(fixed_z) + 1) / 2, SAMPLE_DIR / f"{name}_ep{ep+1:03d}.png", nrow=8)
+        if (ep + 1) % 10 == 0:
+            torch.save(G.state_dict(), CKPT_DIR / f"{name}_G_ep{ep+1}.pt")
+        print(f"{name} ep {ep+1:3d} | D {hist['loss_D'][-1]:.3f} | G {hist['loss_G'][-1]:.3f} | "
+              f"D(x) {hist['D_real'][-1]:.2f} | D(G(z)) {hist['D_fake'][-1]:.2f} | {hist['epoch_time'][-1]:.1f}s")
+
+    torch.save(G.state_dict(), CKPT_DIR / f"{name}_G.pt")   # final G (no "best" epoch without a val loss)
+    save_history(name, hist)
+    return hist
