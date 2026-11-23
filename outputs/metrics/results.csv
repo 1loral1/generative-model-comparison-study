@@ -1,0 +1,8 @@
+Arsitektur Model,Dim Laten,Params,Training Time / Epoch (s),Latency (ms / batch 64),Test MSE,Test PSNR (dB),Test SSIM,FID Score,Kestabilan Training
+MLP + frozen decoder,64,0.22M + 0.22M,5.035756620002212,0.1918150002893526,0.01660583436489105,18.50488284737723,0.7028793096542358,150.60833740234375,"Stable, converged: val/train 1.01 at the end, val loss -40% from epoch 1"
+Vanilla AE,64,0.44M,4.684648869998637,0.16338499990524724,0.009690518174852643,21.04934055873326,0.8053221106529236,158.14785766601562,"Stable, converged: val/train 1.00 at the end, val loss -59% from epoch 1"
+Sparse AE,"64 (L1, λ=0.0001)",0.44M,4.84254853500097,0.16204999992623925,0.010642954579421451,20.609011648995537,0.7828835844993591,157.48095703125,"Stable, converged: val/train 1.01 at the end, val loss -54% from epoch 1"
+VAE,"64 (μ, log σ²)",0.45M,4.877722989998437,0.07790499948896468,0.013856104118483406,19.370520751953126,0.7528984546661377,101.32273864746094,"Stable, converged: val/train 1.00 at the end, val loss -13% from epoch 1"
+Vanilla GAN,100 (noise),1.49M G + 0.53M D,4.9924587039990005,0.2919949998613447,,,,140.38465881347656,"Minimax: D(x) 0.54, D(G(z)) 0.42 at the end (0.50 = D cannot tell); loss G ranged 0.89-2.22"
+DCGAN,100 (noise),0.78M G + 0.14M D,8.854642841999885,1.261990000057267,,,,28.988000869750977,"Minimax: D(x) 0.79, D(G(z)) 0.19 at the end (0.50 = D cannot tell); loss G ranged 1.82-2.58"
+DDPM,784 (28x28 image),1.34M,56.92839277000069,22303.18344999978,,,,33.956947326660156,"Very stable: noise MSE 0.0402, val varies only +/-0.0011 over the last 10 epochs"

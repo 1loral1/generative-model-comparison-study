@@ -48,3 +48,31 @@ def show_grid(imgs, nrow, title=None, path=None):
     if path:
         plt.savefig(path, dpi=300, bbox_inches="tight")
     plt.show()
+
+def show_rows(rows, col_titles=None, title=None, path=None, cell=1.0):
+    """Report figure: one labelled row of images per entry.
+    rows: dict {row label: tensor (N,1,28,28) in [0,1]}; col_titles: words above the first row."""
+    labels = list(rows)
+    ncol = max(len(v) for v in rows.values())
+    fig, axes = plt.subplots(len(labels), ncol, squeeze=False,
+                             figsize=(ncol * cell + 2.2, len(labels) * cell + (0.6 if title else 0.2)))
+    for r, label in enumerate(labels):
+        imgs = rows[label].detach().float().cpu()
+        for c in range(ncol):
+            ax = axes[r, c]
+            ax.set_xticks([])
+            ax.set_yticks([])
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            if c < len(imgs):
+                ax.imshow(imgs[c].squeeze(0), cmap="gray", vmin=0, vmax=1)
+            if c == 0:
+                ax.set_ylabel(label, rotation=0, ha="right", va="center", fontsize=10)
+            if r == 0 and col_titles is not None and c < len(col_titles):
+                ax.set_title(col_titles[c], fontsize=9)
+    if title:
+        fig.suptitle(title, fontsize=12)
+    plt.tight_layout()
+    if path:
+        plt.savefig(path, dpi=300, bbox_inches="tight")
+    plt.show()

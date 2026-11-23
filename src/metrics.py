@@ -22,19 +22,28 @@ def recon_metrics(recon_fn):
         n += x.size(0)
     return {"mse": mse_sum / n, "psnr": psnr_sum / n, "ssim": ssim.compute().item()}
 
+_fid = None  # FID metric that keeps the real (test set) Inception features between calls
+
 @torch.no_grad()
-def fid_score(sample_fn, n_fake=5000, batch=100):
-    """sample_fn(b) must return b images, shape (b,1,28,28), values in [0,1]."""
-    fid = FrechetInceptionDistance(feature=2048, normalize=True).to(DEVICE)
-    for x, _ in test_dl:
-        fid.update(x.to(DEVICE).repeat(1, 3, 1, 1), real=True)
+def fid_score(sample_fn, n_fake=5000, batch=100, chunk=100):
+    """sample_fn(b) must return b images, shape (b,1,28,28), values in [0,1].
+    Real set = the 7,000 test images (their Inception features are computed once and reused).
+    Images go through Inception in chunks of `chunk` so a 4 GB GPU does not run out of memory."""
+    global _fid
+    if _fid is None:
+        _fid = FrechetInceptionDistance(feature=2048, normalize=True, reset_real_features=False).to(DEVICE)
+        for x, _ in test_dl:
+            for part in x.split(chunk):
+                _fid.update(part.to(DEVICE).repeat(1, 3, 1, 1), real=True)
+    _fid.reset()  # clears only the fake features (reset_real_features=False)
     made = 0
     while made < n_fake:
         b = min(batch, n_fake - made)
         imgs = sample_fn(b).clamp(0, 1)
-        fid.update(imgs.repeat(1, 3, 1, 1), real=False)
+        for part in imgs.split(chunk):
+            _fid.update(part.repeat(1, 3, 1, 1), real=False)
         made += b
-    return fid.compute().item()
+    return _fid.compute().item()
 
 @torch.no_grad()
 def latency_ms(fn, reps=20, warmup=3):

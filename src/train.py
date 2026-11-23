@@ -180,6 +180,6 @@ def train_gan(name, G, D, train_dl, epochs, z_dim=100, device=DEVICE):
         print(f"{name} ep {ep+1:3d} | D {hist['loss_D'][-1]:.3f} | G {hist['loss_G'][-1]:.3f} | "
               f"D(x) {hist['D_real'][-1]:.2f} | D(G(z)) {hist['D_fake'][-1]:.2f} | {hist['epoch_time'][-1]:.1f}s")
 
-    torch.save(G.state_dict(), CKPT_DIR / f"{name}_G.pt")   # final G (no "best" epoch without a val loss)
+    torch.save(G.state_dict(), CKPT_DIR / f"{name}_G.pt")   # final G
     save_history(name, hist)
     return hist
